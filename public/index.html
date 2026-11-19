@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Console</title>
+<style>
+:root{--bg:#f4f5f9;--card:#fff;--ink:#1d2433;--mut:#687086;--line:#e4e7ef;--acc:#0b8fd6;--ok:#17a34a;--bad:#d93a3a}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;font:14px/1.5 system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+h1{font-size:20px;margin:0}h3{margin:0 0 12px}p{margin:0}
+button{font:inherit;border:0;border-radius:6px;padding:7px 14px;background:var(--acc);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}button.bad{color:var(--bad)}
+button:focus-visible,input:focus-visible,select:focus-visible,nav a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+label{display:block;margin-bottom:12px;color:var(--mut);text-transform:capitalize}
+input,select{display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font:inherit;color:var(--ink);background:#fff}
+.err{color:var(--bad);min-height:20px}
+#login{min-height:100vh;display:grid;place-items:center}
+#lf{width:min(360px,92vw);background:var(--card);padding:28px;border-radius:10px;border:1px solid var(--line)}#lf h1{margin-bottom:20px}#lf button{width:100%}
+aside{position:fixed;inset:0 auto 0 0;width:230px;background:var(--card);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;overflow:auto}
+.brand{padding:0 8px 14px;font-size:16px}
+nav{flex:1}nav h4{margin:16px 8px 4px;font-size:12px;color:var(--mut);font-weight:500}
+nav a{display:block;padding:7px 8px;border-radius:6px;color:var(--ink);text-decoration:none}nav a:hover{background:var(--bg)}nav a.on{color:var(--acc);background:#e8f4fc}
+main{margin-left:230px;padding:24px 28px}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:8px;flex-wrap:wrap}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px}
+.card p{color:var(--mut);text-transform:capitalize}.card h2{margin:4px 0;font-size:22px}.card small{color:var(--mut)}
+.up{color:var(--ok);font-weight:600}.down{color:var(--bad);font-weight:600}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+.stats{display:flex;gap:28px;color:var(--mut)}.stats b{display:block;font-size:20px;color:var(--ink)}
+.chart{display:flex;gap:10px;align-items:flex-end;height:210px;margin-top:20px;border-bottom:1px solid var(--line)}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px}
+.col i{display:block;width:100%;max-width:30px;background:var(--acc);border-radius:4px 4px 0 0}.col em,.col span{font-size:11px;color:var(--mut);font-style:normal}
+.donut{width:150px;height:150px;border-radius:50%;margin:10px auto 18px;position:relative}
+.donut::after{content:"";position:absolute;inset:26px;background:var(--card);border-radius:50%}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line);margin-right:8px}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+.tbl{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:500;text-transform:capitalize}tr:last-child td{border:0}td.act{text-align:right}
+.pill{padding:2px 9px;border-radius:99px;background:var(--bg);font-size:12px}
+.pill.active,.pill.approved,.pill.paid{background:#e3f6ea;color:var(--ok)}.pill.rejected,.pill.failed,.pill.suspended,.pill.cancelled{background:#fbe8e8;color:var(--bad)}.pill.pending,.pill.processing{background:#fdf3d9;color:#9a6a00}
+.empty{padding:28px;color:var(--mut);text-align:center}
+dialog{border:0;border-radius:10px;padding:24px;width:min(400px,92vw)}dialog::backdrop{background:rgba(20,26,40,.45)}
+.row{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:800px){aside{position:static;width:auto}main{margin:0;padding:16px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="login" hidden>
+  <form id="lf">
+    <h1>Admin Console</h1>
+    <label>Email<input name="email" type="email" required autofocus></label>
+    <label>Password<input name="password" type="password" required></label>
+    <p class="err" id="le"></p>
+    <button>Sign in</button>
+  </form>
+</div>
+<div id="app" hidden>
+  <aside><b class="brand">Admin Console</b><nav id="nav"></nav><button class="ghost" onclick="logout()">Sign out</button></aside>
+  <main id="main"></main>
+</div>
+<dialog id="dlg"></dialog>
+<script>
+const $ = s => document.querySelector(s), main = $("#main");
+let token = sessionStorage.getItem("t"), me = sessionStorage.getItem("n");
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const kes = n => "KES " + Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function api(p, o = {}) {
+  const r = await fetch("/api" + p, { ...o, headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: o.body && JSON.stringify(o.body) });
+  if (r.status === 401) { logout(); throw new Error("Session expired"); }
+  const d = r.status === 204 ? {} : await r.json();
+  if (!r.ok) throw new Error(d.error || "Request failed");
+  return d;
+}
+
+const NAV = [["Main", [["dashboard", "Dashboard"]]], ["General", [["users", "Users"], ["wallets", "Wallets"], ["orders", "Orders"]]],
+  ["Commodities", [["products", "Products"], ["bonuses", "Bonus"], ["incentives", "Incentives"], ["incentive_requests", "Incentive requests"], ["coupons", "Coupons"], ["rewards", "User rewards"]]],
+  ["Payments", [["transactions", "Transactions"], ["approve", "Approve transactions"]]], ["Management", [["platform", "Platform control"], ["admins", "Admins"], ["audit", "Audit log"]]]];
+const ON = ["1", "0"];
+const PAGES = {
+  users: { t: "Users", cols: ["id", "name", "phone", "email", "balance", "status", "created_at"], form: ["name", "phone", "email", ["status", ["active", "suspended"]]] },
+  orders: { t: "Orders", cols: ["id", "user_id", "product_id", "qty", "total", "status", "created_at"], form: ["user_id", "product_id", "qty", "total", ["status", ["pending", "paid", "shipped", "cancelled"]]] },
+  products: { t: "Products", cols: ["id", "name", "price", "stock", "active"], form: ["name", "price", "stock", ["active", ON]] },
+  bonuses: { t: "Bonus", cols: ["id", "user_id", "amount", "reason", "created_at"], form: ["user_id", "amount", "reason"] },
+  incentives: { t: "Incentives", cols: ["id", "title", "amount", "active"], form: ["title", "amount", ["active", ON]] },
+  incentive_requests: { t: "Incentive requests", cols: ["id", "user_id", "incentive_id", "status", "created_at"], form: ["user_id", "incentive_id", ["status", ["pending", "approved", "rejected"]]] },
+  coupons: { t: "Coupons", cols: ["id", "code", "discount_pct", "max_uses", "used", "active"], form: ["code", "discount_pct", "max_uses", ["active", ON]] },
+  rewards: { t: "User rewards", cols: ["id", "user_id", "title", "points", "created_at"], form: ["user_id", "title", "points"] },
+  admins: { t: "Admins", cols: ["id", "name", "email", "role", "created_at"], form: ["name", "email", "password", ["role", ["admin", "support", "superadmin"]]], noEdit: 1 },
+};
+
+const cell = (c, v) => c == "status" ? `<span class="pill ${esc(v)}">${esc(v)}</span>` : ["balance", "amount", "price", "total", "fee"].includes(c) ? kes(v) : esc(v);
+const table = (cols, rows, act) => rows.length
+  ? `<div class="tbl"><table><thead><tr>${cols.map(c => `<th>${c.replace(/_/g, " ")}</th>`).join("")}${act ? "<th></th>" : ""}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${cell(c, r[c])}</td>`).join("")}${act ? `<td class="act">${act(r)}</td>` : ""}</tr>`).join("")}</tbody></table></div>`
+  : `<p class="empty">Nothing here yet.</p>`;
+
+function openForm(title, fields, vals, onSave) {
+  const d = $("#dlg");
+  d.innerHTML = `<form><h3>${esc(title)}</h3>${fields.map(f => { const [n, o] = [].concat(f), v = vals[n] ?? "";
+    return `<label>${n.replace(/_/g, " ")}${o ? `<select name="${n}">${o.map(x => `<option ${x == v ? "selected" : ""}>${x}</option>`).join("")}</select>` : `<input name="${n}" value="${esc(v)}" ${n == "password" ? 'type="password"' : ""}>`}</label>`; }).join("")}<p class="err"></p><div class="row"><button type="button" class="ghost">Cancel</button><button>Save</button></div></form>`;
+  d.querySelector(".ghost").onclick = () => d.close();
+  d.querySelector("form").onsubmit = async e => { e.preventDefault();
+    try { await onSave(Object.fromEntries(new FormData(e.target))); d.close(); route(); } catch (x) { d.querySelector(".err").textContent = x.message; } };
+  d.showModal();
+}
+
+async function dashboard() {
+  const d = await api("/dashboard");
+  const delta = (a, b) => `<span class="${a >= b ? "up" : "down"}">${a >= b ? "+" : "-"}${kes(Math.abs(a - b))}</span> vs last month`;
+  const max = Math.max(1, ...d.signups.map(s => s.c));
+  const g = (t, st) => d.txCounts.filter(x => x.type == t && x.status == st).reduce((a, x) => a + x.c, 0);
+  const dep = g("deposit", "approved"), wd = g("withdrawal", "approved"), pe = d.pending, tot = dep + wd + pe || 1;
+  const a = dep / tot * 360, b = a + wd / tot * 360;
+  main.innerHTML = `<div class="bar"><h1>Welcome, ${esc(me)}</h1></div><div class="cards">
+  ${[["Payment wallet", kes(d.wallets.payment), "Payout float"], ["Service wallet", kes(d.wallets.service), "Service balance"], ["Total balance", kes(d.totalBalance), "Across all user wallets"],
+    ["Deposits this month", kes(d.deposits.month), delta(d.deposits.month, d.deposits.last)], ["Withdrawals this month", kes(d.withdrawals.month), delta(d.withdrawals.month, d.withdrawals.last)]]
+    .map(([l, v, s]) => `<div class="card"><p>${l}</p><h2>${v}</h2><small>${s}</small></div>`).join("")}</div>
+  <div class="grid"><section class="card"><h3>Users</h3><div class="stats"><div><b>${d.users.total}</b>total</div><div><b>${d.users.active}</b>active, last 30 days</div><div><b>${d.users.today}</b>joined today</div></div>
+  <div class="chart">${d.signups.map(s => `<div class="col"><em>${s.c}</em><i style="height:${Math.max(2, s.c / max * 150)}px"></i><span>${s.m}</span></div>`).join("") || '<p class="empty">No sign-ups yet.</p>'}</div></section>
+  <section class="card"><h3>Transactions</h3><div class="donut" style="background:conic-gradient(var(--ok) 0 ${a}deg,var(--bad) ${a}deg ${b}deg,var(--line) ${b}deg 360deg)"></div>
+  <p><i class="dot ok"></i>${dep} deposits approved</p><p><i class="dot bad"></i>${wd} withdrawals approved</p><p><i class="dot"></i>${pe} pending</p></section></div>`;
+}
+
+async function crud(k) {
+  const c = PAGES[k], rows = await api("/" + k);
+  main.innerHTML = `<div class="bar"><h1>${c.t}</h1><button id="add">Add</button></div>` + table(c.cols, rows, r =>
+    (c.noEdit ? "" : `<button class="ghost" data-e="${r.id}">Edit</button> `) + `<button class="ghost bad" data-d="${r.id}">Delete</button>`);
+  $("#add").onclick = () => openForm("Add", c.form, {}, b => api("/" + k, { method: "POST", body: b }));
+  main.onclick = async e => { const t = e.target.dataset;
+    if (t.e) openForm("Edit", c.form, rows.find(r => r.id == t.e), b => api(`/${k}/${t.e}`, { method: "PUT", body: b }));
+    if (t.d && confirm("Delete this record?")) try { await api(`/${k}/${t.d}`, { method: "DELETE" }); route(); } catch (x) { alert(x.message); } };
+}
+
+async function tx(pending) {
+  const rows = await api("/transactions" + (pending ? "?status=pending" : ""));
+  main.innerHTML = `<div class="bar"><h1>${pending ? "Approve transactions" : "Transactions"}</h1>${pending ? "" : '<button id="add">New transaction</button>'}</div>` +
+    table(["id", "user_id", "type", "amount", "fee", "method", "receipt", "status", "created_at"], rows, r => r.status == "pending"
+      ? `<button data-a="approve" data-i="${r.id}">Approve</button> <button class="ghost bad" data-a="reject" data-i="${r.id}">Reject</button>` : "");
+  if (!pending) $("#add").onclick = () => openForm("New transaction", ["user_id", ["type", ["deposit", "withdrawal"]], "amount", ["method", ["manual", "mpesa"]], "reference"], {}, b => api("/transactions", { method: "POST", body: b }));
+  main.onclick = async e => { const a = e.target.dataset.a;
+    if (a) try { await api(`/transactions/${e.target.dataset.i}/${a}`, { method: "POST" }); route(); } catch (x) { alert(x.message); } };
+}
+
+async function wallets() {
+  const w = await api("/wallets");
+  main.innerHTML = `<div class="bar"><h1>Wallets</h1><span><button id="tu">Top up user</button> <button class="ghost" id="pf">Adjust platform wallet</button></span></div>
+  <div class="cards">${w.platform.map(p => `<div class="card"><p>${p.type} wallet</p><h2>${kes(p.balance)}</h2></div>`).join("")}</div><h3>User wallets</h3>` + table(["id", "name", "phone", "balance"], w.users);
+  $("#tu").onclick = () => openForm("Top up user wallet", ["user_id", "amount"], {}, b => api("/wallets/topup", { method: "POST", body: b }));
+  $("#pf").onclick = () => openForm("Adjust platform wallet (use a negative amount to deduct)", [["type", ["payment", "service"]], "amount"], {}, b => api("/wallets/platform", { method: "POST", body: b }));
+}
+
+async function platform() {
+  const s = await api("/settings"), toggles = ["maintenance_mode", "signups_enabled", "deposits_enabled", "withdrawals_enabled", "auto_approve_withdrawals"];
+  main.innerHTML = `<div class="bar"><h1>Platform control</h1></div><div class="card" style="max-width:520px"><form id="sf">${Object.keys(s).map(k => `<label>${k.replace(/_/g, " ")}${toggles.includes(k)
+    ? `<select name="${k}"><option value="1" ${s[k] ? "selected" : ""}>On</option><option value="0" ${s[k] ? "" : "selected"}>Off</option></select>`
+    : `<input name="${k}" type="number" step="any" min="0" value="${s[k]}">`}</label>`).join("")}<p class="err"></p><button>Save settings</button></form></div>`;
+  $("#sf").onsubmit = async e => { e.preventDefault(); const er = e.target.querySelector(".err");
+    try { await api("/settings", { method: "PUT", body: Object.fromEntries(new FormData(e.target)) }); er.style.color = "var(--ok)"; er.textContent = "Saved"; }
+    catch (x) { er.style.color = "var(--bad)"; er.textContent = x.message; } };
+}
+async function audit() {
+  main.innerHTML = `<div class="bar"><h1>Audit log</h1></div>` + table(["id", "admin_name", "method", "path", "detail", "ip", "created_at"], await api("/audit-log"));
+}
+
+function route() {
+  main.onclick = null;
+  const k = location.hash.slice(1) || "dashboard";
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.getAttribute("href") == "#" + k));
+  (k == "dashboard" ? dashboard() : k == "platform" ? platform() : k == "audit" ? audit() : k == "wallets" ? wallets() : k == "transactions" ? tx(0) : k == "approve" ? tx(1) : crud(k))
+    .catch(e => main.innerHTML = `<p class="empty">${esc(e.message)}</p>`);
+}
+function show() {
+  $("#login").hidden = !!token; $("#app").hidden = !token;
+  if (token) { $("#nav").innerHTML = NAV.map(([g, items]) => `<h4>${g}</h4>` + items.map(([k, l]) => `<a href="#${k}">${l}</a>`).join("")).join(""); route(); }
+}
+function logout() { sessionStorage.clear(); token = me = null; show(); }
+$("#lf").onsubmit = async e => { e.preventDefault();
+  try {
+    const r = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    const d = await r.json(); if (!r.ok) throw new Error(d.error);
+    token = d.token; me = d.name; sessionStorage.setItem("t", token); sessionStorage.setItem("n", me); show();
+  } catch (x) { $("#le").textContent = x.message; } };
+window.onhashchange = () => token && route();
+show();
+</script>
+</body>
+</html>
