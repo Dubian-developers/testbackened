@@ -82,7 +82,7 @@ const ON = ["1", "0"];
 const PAGES = {
   users: { t: "Users", cols: ["id", "name", "phone", "email", "balance", "status", "created_at"], form: ["name", "phone", "email", ["status", ["active", "suspended"]]] },
   orders: { t: "Orders", cols: ["id", "user_id", "product_id", "qty", "total", "status", "created_at"], form: ["user_id", "product_id", "qty", "total", ["status", ["pending", "paid", "shipped", "cancelled"]]] },
-  products: { t: "Products", cols: ["id", "name", "price", "stock", "active"], form: ["name", "price", "stock", ["active", ON]] },
+  products: { t: "Products", cols: ["id", "image", "name", "price", "stock", "active"], form: ["name", "price", "stock", ["active", ON]] },
   bonuses: { t: "Bonus", cols: ["id", "user_id", "amount", "reason", "created_at"], form: ["user_id", "amount", "reason"] },
   incentives: { t: "Incentives", cols: ["id", "title", "amount", "active"], form: ["title", "amount", ["active", ON]] },
   incentive_requests: { t: "Incentive requests", cols: ["id", "user_id", "incentive_id", "status", "created_at"], form: ["user_id", "incentive_id", ["status", ["pending", "approved", "rejected"]]] },
@@ -91,7 +91,7 @@ const PAGES = {
   admins: { t: "Admins", cols: ["id", "name", "email", "role", "created_at"], form: ["name", "email", "password", ["role", ["admin", "support", "superadmin"]]], noEdit: 1 },
 };
 
-const cell = (c, v) => c == "status" ? `<span class="pill ${esc(v)}">${esc(v)}</span>` : ["balance", "amount", "price", "total", "fee"].includes(c) ? kes(v) : esc(v);
+const cell = (c, v) => c == "image" ? (v ? `<img src="${esc(v)}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block">` : "") : c == "status" ? `<span class="pill ${esc(v)}">${esc(v)}</span>` : ["balance", "amount", "price", "total", "fee"].includes(c) ? kes(v) : esc(v);
 const table = (cols, rows, act) => rows.length
   ? `<div class="tbl"><table><thead><tr>${cols.map(c => `<th>${c.replace(/_/g, " ")}</th>`).join("")}${act ? "<th></th>" : ""}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${cell(c, r[c])}</td>`).join("")}${act ? `<td class="act">${act(r)}</td>` : ""}</tr>`).join("")}</tbody></table></div>`
   : `<p class="empty">Nothing here yet.</p>`;
@@ -123,12 +123,26 @@ async function dashboard() {
   <p><i class="dot ok"></i>${dep} deposits approved</p><p><i class="dot bad"></i>${wd} withdrawals approved</p><p><i class="dot"></i>${pe} pending</p></section></div>`;
 }
 
+function pickImage(id) {
+  const inp = Object.assign(document.createElement("input"), { type: "file", accept: "image/jpeg,image/png,image/webp" });
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    if (f.size > 5 * 1024 * 1024) return alert("Image must be under 5 MB");
+    try {
+      const r = await fetch(`/api/products/${id}/image`, { method: "POST", headers: { "Content-Type": f.type, Authorization: "Bearer " + token }, body: f });
+      if (!r.ok) throw new Error((await r.json()).error); route();
+    } catch (x) { alert(x.message || "Upload failed"); }
+  };
+  inp.click();
+}
+
 async function crud(k) {
   const c = PAGES[k], rows = await api("/" + k);
   main.innerHTML = `<div class="bar"><h1>${c.t}</h1><button id="add">Add</button></div>` + table(c.cols, rows, r =>
-    (c.noEdit ? "" : `<button class="ghost" data-e="${r.id}">Edit</button> `) + `<button class="ghost bad" data-d="${r.id}">Delete</button>`);
+    (k == "products" ? `<button class="ghost" data-i="${r.id}">Image</button> ` : "") + (c.noEdit ? "" : `<button class="ghost" data-e="${r.id}">Edit</button> `) + `<button class="ghost bad" data-d="${r.id}">Delete</button>`);
   $("#add").onclick = () => openForm("Add", c.form, {}, b => api("/" + k, { method: "POST", body: b }));
   main.onclick = async e => { const t = e.target.dataset;
+    if (t.i) pickImage(t.i);
     if (t.e) openForm("Edit", c.form, rows.find(r => r.id == t.e), b => api(`/${k}/${t.e}`, { method: "PUT", body: b }));
     if (t.d && confirm("Delete this record?")) try { await api(`/${k}/${t.d}`, { method: "DELETE" }); route(); } catch (x) { alert(x.message); } };
 }

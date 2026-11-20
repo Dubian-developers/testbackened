@@ -27,7 +27,7 @@ module.exports = (db, { settings, createTx, finish, payout }, { wrap, positive, 
 
   u.use(auth);
   u.get("/me", wrap((q, s) => s.json(one("SELECT id,name,phone,email,balance,status FROM users WHERE id=?", q.uid))));
-  u.get("/products", wrap((q, s) => s.json(db.prepare("SELECT id,name,price,stock FROM products WHERE active=1").all())));
+  u.get("/products", wrap((q, s) => s.json(db.prepare("SELECT id,name,price,stock,image FROM products WHERE active=1").all())));
   u.get("/transactions", wrap((q, s) => s.json(db.prepare("SELECT id,type,amount,fee,method,receipt,status,created_at FROM transactions WHERE user_id=? ORDER BY id DESC LIMIT 100").all(q.uid))));
 
   // Deposit: STK push to the user's phone; the balance is credited when the callback confirms payment

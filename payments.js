@@ -6,6 +6,7 @@ module.exports = (db, api, { wrap, positive, one, superOnly }) => {
   const addCol = (t, c, d) => { try { db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} ${d}`); } catch {} }; // no-op if it exists
   addCol("admins", "role", "TEXT DEFAULT 'superadmin'");
   addCol("users", "password", "TEXT");
+  addCol("products", "image", "TEXT");
   [["fee", "REAL DEFAULT 0"], ["checkout_id", "TEXT"], ["receipt", "TEXT"], ["note", "TEXT"]].forEach(([c, d]) => addCol("transactions", c, d));
 
   db.exec("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value REAL)");

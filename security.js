@@ -20,7 +20,7 @@ exports.audit = db => {
   return (q, s, n) => {
     if (q.method !== "GET") s.on("finish", () => {
       if (s.statusCode >= 400) return;
-      const b = { ...q.body }; delete b.password;
+      const b = Buffer.isBuffer(q.body) ? { upload: q.body.length + " bytes" } : { ...q.body }; delete b.password;
       db.prepare("INSERT INTO audit_log(admin_id,admin_name,method,path,detail,ip) VALUES(?,?,?,?,?,?)")
         .run(q.admin.id, q.admin.name, q.method, q.originalUrl, JSON.stringify(b).slice(0, 500), q.ip);
     });

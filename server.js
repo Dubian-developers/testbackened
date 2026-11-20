@@ -9,7 +9,7 @@ db.pragma("journal_mode = WAL");
 // Resources that get plain CRUD endpoints: table -> column definitions
 const R = {
   users: { name: "TEXT NOT NULL", phone: "TEXT UNIQUE", email: "TEXT", status: "TEXT DEFAULT 'active'", balance: "REAL DEFAULT 0" },
-  products: { name: "TEXT NOT NULL", price: "REAL DEFAULT 0", stock: "INTEGER DEFAULT 0", active: "INTEGER DEFAULT 1" },
+  products: { name: "TEXT NOT NULL", price: "REAL DEFAULT 0", stock: "INTEGER DEFAULT 0", active: "INTEGER DEFAULT 1", image: "TEXT" },
   orders: { user_id: "INTEGER", product_id: "INTEGER", qty: "INTEGER DEFAULT 1", total: "REAL DEFAULT 0", status: "TEXT DEFAULT 'pending'" },
   coupons: { code: "TEXT UNIQUE NOT NULL", discount_pct: "REAL DEFAULT 0", max_uses: "INTEGER DEFAULT 0", used: "INTEGER DEFAULT 0", active: "INTEGER DEFAULT 1" },
   incentives: { title: "TEXT NOT NULL", amount: "REAL DEFAULT 0", active: "INTEGER DEFAULT 1" },
@@ -17,7 +17,7 @@ const R = {
   bonuses: { user_id: "INTEGER", amount: "REAL DEFAULT 0", reason: "TEXT" },
   rewards: { user_id: "INTEGER", title: "TEXT", points: "INTEGER DEFAULT 0" },
 };
-const READONLY = ["balance", "used"]; // changed only by the system, never by CRUD
+const READONLY = ["balance", "used", "image"]; // changed only by the system, never by CRUD
 
 for (const [t, c] of Object.entries(R))
   db.exec(`CREATE TABLE IF NOT EXISTS ${t}(id INTEGER PRIMARY KEY, ${Object.entries(c).map(([k, v]) => k + " " + v).join(", ")}, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
@@ -101,6 +101,7 @@ api.post("/wallets/platform", wrap((q, s) => {
 }));
 
 const pay = require("./payments")(db, api, { wrap, positive, one, superOnly });
+const uploadsDir = require("./uploads")(db, api, { wrap, one });
 
 // Admins
 api.get("/admins", wrap((q, s) => s.json(db.prepare("SELECT id,name,email,role,created_at FROM admins").all())));
@@ -145,7 +146,9 @@ app.use(express.json({ limit: "100kb" }));
 app.get("/health", (q, s) => s.json({ ok: true }));
 app.use("/mpesa", callbacks);
 app.use("/v1", limiter(120, 60_000), userApi);
+app.use("/uploads", express.static(uploadsDir, { maxAge: "7d" }));
 app.use("/api", api);
 app.use(express.static(__dirname + "/public"));
 app.get("/admin/*", (q, s) => s.sendFile(__dirname + "/public/index.html"));
+app.use((e, q, s, n) => s.status(e.status || 500).json({ error: e.status === 413 ? "File too large (max 5 MB)" : e.status < 500 ? "Invalid request" : "Server error" }));
 app.listen(process.env.PORT || 3000, () => console.log("Admin running on port " + (process.env.PORT || 3000)));
